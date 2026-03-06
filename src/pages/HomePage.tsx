@@ -249,11 +249,9 @@ export default function HomePage() {
           © 2026 NewsAlpha — Senior Design Project
         </span>
         <div className="hp-footer__links">
-          {["GitHub", "Documentation", "Contact"].map((l) => (
-            <span key={l} className="hp-footer__link">
-              {l}
-            </span>
-          ))}
+          <a href="https://github.com/edsng/NewsAlpha" target="_blank" rel="noopener noreferrer" className="hp-footer__link">GitHub</a>
+          <span className="hp-footer__link">Documentation</span>
+          <span className="hp-footer__link">Contact</span>
         </div>
       </footer>
     </div>

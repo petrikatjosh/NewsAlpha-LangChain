@@ -569,6 +569,7 @@
   color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s ease;
+  text-decoration: none;
 }
 
 .hp-footer__link:hover {
