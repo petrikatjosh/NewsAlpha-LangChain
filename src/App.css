@@ -1,0 +1,27 @@
+/* ── Google Fonts ── */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif&display=swap");
+
+/* ── Design tokens ── */
+:root {
+  --bg: #0b0e11;
+  --surface: #12161c;
+  --surface-hover: #1a1f28;
+  --border: #1e2530;
+  --border-light: #2a3140;
+  --text: #e8ecf1;
+  --text-muted: #7a8599;
+  --accent: #3b82f6;
+  --accent-glow: rgba(59, 130, 246, 0.12);
+  --green: #22c55e;
+  --red: #ef4444;
+  --amber: #f59e0b;
+  --cyan: #06b6d4;
+  --purple: #a855f7;
+  --pink: #ec4899;
+
+  --font-sans: "DM Sans", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-serif: "Instrument Serif", serif;
+
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
