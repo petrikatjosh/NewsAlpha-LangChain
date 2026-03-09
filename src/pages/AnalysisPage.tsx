@@ -924,8 +924,7 @@ export default function AnalysisPage() {
               <div className="ap-notice ap-fade-in ap-fade-in--d7">
                 <span className="ap-notice__icon">⚠️</span>
                 <span className="ap-notice__text">
-                  <strong>Limited data.</strong> Per-source or cross-sector daily
-                  time series are not available in the database. Showing aggregate
+                  <strong>Limited data.</strong> Per-source per-sector analysis is not available in the database. Showing aggregate
                   stats from the closest available data.
                 </span>
               </div>
