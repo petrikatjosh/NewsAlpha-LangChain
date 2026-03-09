@@ -152,6 +152,221 @@ def timeseries_all():
 
 
 # ---------------------------------------------------------------------------
+# ANALYSIS PAGE — combined endpoint for the AnalysisPage dashboard
+# ---------------------------------------------------------------------------
+def _parse_date(date_str):
+    """Parse dates from the DB. Handles MM-DD-YYYY, YYYY-MM-DD, and similar."""
+    if not date_str:
+        return None
+    parts = date_str.replace("/", "-").split("-")
+    try:
+        if len(parts[0]) == 4:
+            # YYYY-MM-DD
+            return (int(parts[0]), int(parts[1]), int(parts[2]))
+        else:
+            # MM-DD-YYYY
+            return (int(parts[2]), int(parts[0]), int(parts[1]))
+    except (ValueError, IndexError):
+        return None
+
+
+def _format_date(date_str):
+    """Convert raw DB date to readable 'Jan 15, 2019' format."""
+    parsed = _parse_date(date_str)
+    if not parsed:
+        return date_str
+    y, m, d = parsed
+    month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    return f"{month_names[m]} {d}, {y}"
+
+
+def _sort_rows_by_date(rows):
+    """Sort row dicts by their 'date' field chronologically."""
+    return sorted(rows, key=lambda r: _parse_date(r.get("date", "")) or (0, 0, 0))
+
+
+@app.route("/api/analysis")
+def analysis():
+    """
+    Combined endpoint powering the AnalysisPage dashboard.
+    Query params:
+        news_sector   (required) — e.g. XLK
+        market_sector (required) — e.g. XLK
+        source        (optional) — e.g. "all", "guardian", etc.
+
+    Returns JSON with: dailyData, priceSeries, correlation, accuracy,
+    tradingDays, meanSentiment, meanReturn, articles, isLimited
+    """
+    news_sector = request.args.get("news_sector", "XLK").upper()
+    market_sector = request.args.get("market_sector", "XLK").upper()
+    source = request.args.get("source", "all")
+
+    if news_sector == EXCLUDE or market_sector == EXCLUDE:
+        return jsonify({"error": f"{EXCLUDE} excluded (insufficient sample size)"}), 400
+
+    same_sector = news_sector == market_sector
+    is_limited = False
+
+    # ── Daily time-series data ──
+    # Full daily data is available for same-sector, all-sources
+    if same_sector:
+        daily_rows = query_db(
+            """SELECT date, avg_sentiment AS sentiment,
+                      daily_return_pct AS returnPct,
+                      article_count, market_direction
+               FROM joined_sentiment_market
+               WHERE sector = ?
+               ORDER BY date""",
+            [market_sector],
+        )
+        if source != "all":
+            is_limited = True  # can't filter by source in this table
+    else:
+        # Cross-sector: show market-sector prices, no sentiment overlay
+        daily_rows = query_db(
+            """SELECT date, NULL AS sentiment,
+                      daily_return_pct AS returnPct,
+                      article_count, market_direction
+               FROM joined_sentiment_market
+               WHERE sector = ?
+               ORDER BY date""",
+            [market_sector],
+        )
+        is_limited = True
+
+    # ── Sort chronologically (DB date format may not sort as strings) ──
+    daily_rows = _sort_rows_by_date(daily_rows)
+
+    # ── Build price series from cumulative returns ──
+    price = 100.0
+    price_series = []
+    for row in daily_rows:
+        ret = row["returnPct"] or 0
+        price *= (1 + ret / 100)
+        price = max(price, 1)
+        sent = row["sentiment"]
+        predicted = None
+        if sent is not None:
+            predicted = (sent >= 0 and ret >= 0) or (sent < 0 and ret < 0)
+        price_series.append({
+            "date": _format_date(row["date"]),
+            "price": round(price, 2),
+            "sentiment": round(sent, 4) if sent is not None else None,
+            "returnPct": round(ret, 4),
+            "predicted": predicted,
+        })
+
+    # ── Monthly-bucketed bar chart data ──
+    daily_data = _bucket_monthly(daily_rows)
+
+    # ── Correlation ──
+    if same_sector:
+        corr_row = query_db(
+            "SELECT correlation FROM sector_correlations WHERE sector = ?",
+            [news_sector], one=True,
+        )
+        correlation = corr_row["correlation"] if corr_row else 0.0
+    else:
+        corr_row = query_db(
+            """SELECT correlation FROM cross_sector_correlations
+               WHERE sent_sector = ? AND mkt_sector = ?""",
+            [news_sector, market_sector], one=True,
+        )
+        correlation = corr_row["correlation"] if corr_row else 0.0
+
+    # ── Prediction accuracy ──
+    source_map = {
+        "guardian": "The Guardian", "cnn_dailymail": "CNN-DailyMail",
+        "ibt": "Intl Business Times", "globenewswire": "GlobeNewswire",
+        "times_of_india": "Times of India", "bbc": "BBC News",
+        "npr": "NPR", "boing_boing": "Boing Boing",
+        "business_insider": "Business Insider",
+        "globalsecurity": "Globalsecurity.org", "abc": "ABC News",
+    }
+
+    if source != "all":
+        source_name = source_map.get(source, source)
+        acc_row = query_db(
+            "SELECT accuracy, num_days FROM source_accuracy WHERE source_name = ?",
+            [source_name], one=True,
+        )
+        acc = acc_row["accuracy"] if acc_row else 0.5
+        trading_days = acc_row["num_days"] if acc_row else 0
+    elif same_sector:
+        acc_row = query_db(
+            "SELECT accuracy, num_days FROM prediction_accuracy WHERE sector = ?",
+            [news_sector], one=True,
+        )
+        acc = acc_row["accuracy"] if acc_row else 0.5
+        trading_days = acc_row["num_days"] if acc_row else 0
+    else:
+        acc = 0.5
+        trading_days = len(daily_rows)
+
+    # ── Aggregate stats ──
+    sentiments = [r["sentiment"] for r in daily_rows if r["sentiment"] is not None]
+    returns = [r["returnPct"] for r in daily_rows if r["returnPct"] is not None]
+    articles_list = [r["article_count"] for r in daily_rows if r.get("article_count")]
+
+    mean_sentiment = sum(sentiments) / len(sentiments) if sentiments else 0
+    mean_return = sum(returns) / len(returns) if returns else 0
+    total_articles = sum(articles_list) if articles_list else 0
+
+    accuracy_pct = acc * 100 if acc <= 1 else acc
+
+    return jsonify({
+        "dailyData": daily_data,
+        "priceSeries": price_series,
+        "correlation": round(correlation, 4) if correlation else 0,
+        "accuracy": round(accuracy_pct, 1),
+        "tradingDays": trading_days if trading_days else len(daily_rows),
+        "meanSentiment": round(mean_sentiment, 4),
+        "meanReturn": round(mean_return, 6),
+        "articles": int(total_articles),
+        "isLimited": is_limited,
+    })
+
+
+def _bucket_monthly(rows):
+    """Group daily rows into ~monthly buckets for the bar charts."""
+    if not rows:
+        return []
+    buckets = {}
+    for r in rows:
+        parsed = _parse_date(r["date"])
+        if not parsed:
+            continue
+        y, m, _d = parsed
+        ym = f"{y:04d}-{m:02d}"  # "2019-03" — sorts chronologically
+        if ym not in buckets:
+            buckets[ym] = {"sents": [], "rets": []}
+        if r["sentiment"] is not None:
+            buckets[ym]["sents"].append(r["sentiment"])
+        if r["returnPct"] is not None:
+            buckets[ym]["rets"].append(r["returnPct"])
+
+    month_names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    result = []
+    for ym in sorted(buckets.keys()):
+        b = buckets[ym]
+        sent_avg = sum(b["sents"]) / len(b["sents"]) if b["sents"] else 0
+        ret_avg = sum(b["rets"]) / len(b["rets"]) if b["rets"] else 0
+        year, month = ym.split("-")
+        label = f"{month_names[int(month)]} '{year[2:]}"
+        result.append({
+            "date": label,
+            "sentiment": round(sent_avg, 4),
+            "returnPct": round(ret_avg, 4),
+        })
+    if len(result) > 30:
+        step = len(result) // 24
+        result = result[::step]
+    return result
+
+
+# ---------------------------------------------------------------------------
 # CORRELATIONS
 # ---------------------------------------------------------------------------
 @app.route("/api/correlations/same-sector")
@@ -672,6 +887,7 @@ if __name__ == "__main__":
     print(f"    GET  /api/health")
     print(f"    GET  /api/sectors")
     print(f"    GET  /api/timeseries?sector=XLK")
+    print(f"    GET  /api/analysis?news_sector=XLK&market_sector=XLK&source=all")
     print(f"    GET  /api/correlations/same-sector")
     print(f"    GET  /api/correlations/cross-sector")
     print(f"    GET  /api/accuracy/same-day")
