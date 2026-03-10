@@ -725,6 +725,7 @@ export default function AnalysisPage() {
           <Link to="/" className="ap-nav-link">Home</Link>
           <Link to="/analysis" className="ap-nav-link ap-nav-link--active">Analysis</Link>
           <Link to="/paper" className="ap-nav-link">Paper</Link>
+          <Link to="/ai-analyst" className="ap-nav-link">AI Analyst</Link>
           <Link to="/about" className="ap-nav-link">About</Link>
         </div>
       </nav>

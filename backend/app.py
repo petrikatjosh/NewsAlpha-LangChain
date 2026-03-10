@@ -21,6 +21,7 @@ import os
 import re
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
+from langchain_backend import langchain_bp   # near top
 
 app = Flask(__name__)
 CORS(app)
@@ -905,6 +906,7 @@ def chat():
     except Exception as e:
         return jsonify({"question": question, "answer": f"Sorry, something went wrong: {str(e)}"}), 500
 
+app.register_blueprint(langchain_bp)          # before the if __name__ block
 
 # ---------------------------------------------------------------------------
 # Run

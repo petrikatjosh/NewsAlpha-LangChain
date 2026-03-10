@@ -4,6 +4,7 @@ import AnalysisPage from "./pages/AnalysisPage";
 import Chatbot from "./Chatbot";
 import PaperPage from "./pages/PaperPage";
 import AboutPage from "./pages/AboutPage";
+import AIAnalystPage from "./pages/AIAnalystPage";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/analysis" element={<AnalysisPage />} />
         <Route path="/paper" element={<PaperPage />} />
+        <Route path="/ai-analyst" element={<AIAnalystPage />} />
         <Route path="/about" element={<AboutPage />} />
       </Routes>
       <Chatbot />

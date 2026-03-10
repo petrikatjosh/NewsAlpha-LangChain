@@ -55,9 +55,9 @@ const TEAM: Member[] = [
     name: "John-Paul",
     initials: "JP",
     color: "var(--cyan)",
-    role: "Data Processing",
+    role: "DATA PROCESSING & AI ANALYST",
     contributions:
-      "Initial article data processing and preparation for the Spark pipeline.",
+      "Initial article data preprocessing and preparation for the Spark pipeline. Implemented an AI Analyst utilizing LangChain LLM integration and dynamic charting representation.",
     about: null,
   },
   {
@@ -66,7 +66,7 @@ const TEAM: Member[] = [
     color: "var(--accent)",
     role: "Pipeline & Infrastructure",
     contributions:
-      "Spark pipeline development, ETF data collection, benchmarking, pipeline integration, and exporting results to SQLite.",
+      "Spark pipeline development, ETF data collection, benchmarking, pipeline integration, and exporting results to SQLite. Connected the backend to the university MySQL cluster for live data serving.",
     about: null,
   },
   {
@@ -132,6 +132,7 @@ export default function AboutPage() {
           <Link to="/" className="ab-nav-link">Home</Link>
           <Link to="/analysis" className="ab-nav-link">Analysis</Link>
           <Link to="/paper" className="ab-nav-link">Paper</Link>
+          <Link to="/ai-analyst" className="ab-nav-link">AI Analyst</Link>
           <Link to="/about" className="ab-nav-link ab-nav-link--active">About</Link>
         </div>
       </nav>
